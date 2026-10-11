@@ -1,0 +1,329 @@
+---
+title: "Project ANOVA RAL Pengantar Model Linear"
+author: "Sandra Berliana Putri"
+date: "2024-11-27"
+output: html_document
+---
+
+## Matriks Model Linier Umum
+```{r}
+y <- matrix(c(18.50, 17.70, 18, 10.70, 11.20, 11.20, 1.6, 2, 1.89), nrow=9, ncol=1)
+y
+
+X <- matrix(c(1,1,0,0,1,1,0,0,1,1,0,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,0,1,1,0,0,1,1,0,0,1), nrow=9, ncol=4, byrow=T)
+X
+```
+
+## Matriks X'X dan X'y
+```{r}
+XtX <- t(X)%*%X
+XtX
+
+Xty <- t(X)%*%y
+Xty
+```
+
+## Reparameterisasi X'X
+```{r}
+xtx <- matrix(c(3,0,0,0,3,0,0,0,3), 3,3)
+xtx
+
+xtx_i <- solve(xtx)
+xtx_i
+```
+
+```{r}
+xty <- matrix(c(54.20, 33.10, 5.49), 3, 1)
+xty
+```
+
+```{r}
+betha <- xtx_i %*% xty
+betha
+```
+
+```{r}
+miu <- (betha[1,]+betha[2,]+betha[3,])/3
+miu
+
+miu.ok <- matrix(c(10.31,10.31,10.31),3,1)
+miu.ok
+```
+
+```{r}
+betha.ok <- betha - miu.ok
+betha.ok
+```
+
+## Uji asumsi ANOVA
+```{r}
+# Data hasil percobaan
+data_ral <- data.frame(
+  Jenis_Tanaman = factor(rep(c("Daun Singkong", "Daun Bayam", "Daun Selada"), each = 3)),
+  Kandungan_Klorofil = c(18.50, 17.70, 18.00, 10.70, 11.20, 11.20, 1.60, 2.00, 1.89)
+)
+
+```
+
+```{r}
+# Model ANOVA
+anova_model <- aov(Kandungan_Klorofil ~ Jenis_Tanaman, data = data_ral)
+
+# Residual model
+residuals_anova <- residuals(anova_model)
+
+# Uji Shapiro-Wilk
+shapiro_test <- shapiro.test(residuals_anova)
+
+# Output uji normalitas
+cat("4.5.1 Pengujian Asumsi Normalitas Galat\n")
+cat("Hipotesis:\n")
+cat("H0: e_ij ~ N(μ, σ^2) dengan μ = 0\n")
+cat("H1: e_ij ~ N(μ, σ^2) dengan μ ≠ 0\n")
+cat("\nHasil Uji Normalitas Galat:\n")
+cat("Statistik W =", round(shapiro_test$statistic, 3), "\n")
+cat("p-value =", round(shapiro_test$p.value, 3), "\n")
+
+if (shapiro_test$p.value > 0.05) {
+  cat("Kesimpulan: p-value > 0.05, sehingga H0 diterima. Data residual berdistribusi normal.\n")
+} else {
+  cat("Kesimpulan: p-value <= 0.05, sehingga H0 ditolak. Data residual tidak berdistribusi normal.\n")
+}
+
+```
+
+```{r}
+# Uji Bartlett untuk homogenitas variansi
+bartlett_test <- bartlett.test(Kandungan_Klorofil ~ Jenis_Tanaman, data = data_ral)
+
+# Output uji homogenitas
+cat("\n4.5.2 Pengujian Kehomogenan Ragam Galat\n")
+cat("Hipotesis:\n")
+cat("H0: σ1^2 = σ2^2 = ... = σk^2\n")
+cat("H1: Paling tidak terdapat satu i di mana σi^2 ≠ σj^2\n")
+cat("\nHasil Uji Bartlett:\n")
+cat("Statistik Chi-sq =", round(bartlett_test$statistic, 3), "\n")
+cat("p-value =", round(bartlett_test$p.value, 3), "\n")
+
+if (bartlett_test$p.value > 0.05) {
+  cat("Kesimpulan: p-value > 0.05, sehingga H0 diterima. Variansi antar kelompok homogen.\n")
+} else {
+  cat("Kesimpulan: p-value <= 0.05, sehingga H0 ditolak. Variansi antar kelompok tidak homogen.\n")
+}
+
+```
+
+```{r}
+# Tambahkan package car untuk Levene's Test
+if (!require(car)) install.packages("car")
+library(car)
+
+# Uji Levene
+levene_test <- leveneTest(Kandungan_Klorofil ~ Jenis_Tanaman, data = data_ral)
+
+# Output uji homogenitas ragam
+cat("\n4.5.2 Pengujian Kehomogenan Ragam Galat (Levene's Test)\n")
+cat("Hipotesis:\n")
+cat("H0: Variansi antar kelompok homogen\n")
+cat("H1: Variansi antar kelompok tidak homogen\n")
+
+# Format hasil Levene's Test
+tabel_levene <- data.frame(
+  Faktor = c("Jenis Tanaman"),
+  "Statistik Uji (F)" = round(levene_test$"F value", 3),
+  "Nilai-p" = round(levene_test$"Pr(>F)", 3)
+)
+
+print(tabel_levene)
+
+# Kesimpulan
+if (levene_test$"Pr(>F)"[1] > 0.05) {
+  cat("\nKesimpulan: p-value > 0.05, sehingga H0 diterima. Variansi antar kelompok homogen.\n")
+} else {
+  cat("\nKesimpulan: p-value <= 0.05, sehingga H0 ditolak. Variansi antar kelompok tidak homogen.\n")
+}
+
+```
+
+```{r}
+# Hitung NAT (residual kuadrat)
+data_ral$NAT <- residuals_anova^2
+
+# Model dengan NAT
+model_aditivitas <- lm(Kandungan_Klorofil ~ Jenis_Tanaman + NAT, data = data_ral)
+
+# Tabel ANOVA
+anova_aditivitas <- anova(model_aditivitas)
+
+# Output uji aditivitas
+cat("\n4.5.3 Pengujian Keaditifan Model\n")
+cat("Hipotesis:\n")
+cat("H0: ω = 0\n")
+cat("H1: ω ≠ 0\n")
+cat("\nTabel 4.3. Hasil Pengujian Keaditifan Model:\n")
+
+# Format tabel ANOVA
+tabel_aditivitas <- data.frame(
+  SK = c("Perlakuan", "NAT", "Galat", "Total"),
+  db = c(anova_aditivitas$Df[1:3], sum(anova_aditivitas$Df)),
+  JK = round(c(anova_aditivitas$"Sum Sq"[1:3], sum(anova_aditivitas$"Sum Sq")), 3),
+  KT = round(c(anova_aditivitas$"Mean Sq"[1:3], NA), 3),
+  F_hit = c(round(anova_aditivitas$"F value"[1:2], 3), "-", "-"),
+  p_value = c(round(anova_aditivitas$"Pr(>F)"[1:2], 3), "-", "-")
+)
+
+print(tabel_aditivitas)
+
+# Kesimpulan uji NAT
+if (anova_aditivitas$"Pr(>F)"[2] > 0.05) {
+  cat("\nKesimpulan: p-value NAT lebih dari 0.05, H0 diterima. Model dianggap aditif.\n")
+} else {
+  cat("\nKesimpulan: p-value NAT kurang dari atau sama dengan 0.05, H0 ditolak. Model tidak aditif.\n")
+}
+
+```
+
+```{r}
+# Load library
+if (!require(car)) install.packages("car")
+library(car)
+
+# Data residual dari model ANOVA awal
+anova_model <- aov(Kandungan_Klorofil ~ Jenis_Tanaman, data = data_ral)
+residuals_abs <- abs(residuals(anova_model)) # Hitung nilai absolut residual
+
+# Tambahkan nilai absolut residual ke dataset sebagai peubah Z
+data_ral$Z <- residuals_abs
+
+# ANOVA untuk uji Levene berdasarkan peubah Z
+anova_levene <- aov(Z ~ Jenis_Tanaman, data = data_ral)
+
+# Tabel ANOVA untuk uji Levene
+anova_table <- anova(anova_levene)
+
+# Output ANOVA
+cat("\nTabel 4.4. Analisis Ragam untuk Peubah Z:\n")
+tabel_homogenitas <- data.frame(
+  SK = c("Perlakuan", "Galat", "Total"),
+  db = c(anova_table$Df[1], anova_table$Df[2], sum(anova_table$Df)),
+  JK = round(c(anova_table$"Sum Sq"[1], anova_table$"Sum Sq"[2], sum(anova_table$"Sum Sq")), 3),
+  KT = round(c(anova_table$"Mean Sq"[1], anova_table$"Mean Sq"[2], NA), 3),
+  "Statistik Uji F" = c(round(anova_table$"F value"[1], 3), "-", "-")
+)
+
+print(tabel_homogenitas)
+
+# Hitung F kritis untuk α = 0.01
+f_critical <- qf(0.99, df1 = anova_table$Df[1], df2 = anova_table$Df[2])
+cat("\nF-kritis (α = 0.01) =", round(f_critical, 3), "\n")
+
+# Kesimpulan uji Levene
+if (anova_table$"F value"[1] < f_critical) {
+  cat("Kesimpulan: F-hitung < F-kritis, sehingga H0 diterima. Ragam galat bersifat homogen.\n")
+} else {
+  cat("Kesimpulan: F-hitung >= F-kritis, sehingga H0 ditolak. Ragam galat tidak bersifat homogen.\n")
+}
+
+```
+
+```{r}
+# Data ANOVA (Menggunakan data Anda sebelumnya)
+data_ral <- data.frame(
+  Jenis_Tanaman = factor(c(rep("Singkong", 3), rep("Bayam", 3), rep("Selada", 3))),
+  Kandungan_Klorofil = c(18.50, 17.70, 18.00, 10.70, 11.20, 11.20, 1.60, 2.00, 1.89)
+)
+
+# Model Penuh: Semua faktor dimasukkan
+model_penuh <- aov(Kandungan_Klorofil ~ Jenis_Tanaman, data = data_ral)
+
+# Model Tereduksi: Tanpa faktor Jenis_Tanaman (Hanya mean total)
+model_tereduksi <- aov(Kandungan_Klorofil ~ 1, data = data_ral)
+
+# Bandingkan kedua model
+anova_perbandingan <- anova(model_tereduksi, model_penuh)
+
+# Tabel ANOVA untuk model penuh
+anova_penuh <- summary(model_penuh)
+
+# Output Tabel ANOVA
+cat("\nTabel ANOVA Model Penuh:\n")
+tabel_penuh <- data.frame(
+  SK = c("Jenis Tanaman", "Galat"),
+  db = c(anova_penuh[[1]][["Df"]][1], anova_penuh[[1]][["Df"]][2]),
+  JK = round(c(anova_penuh[[1]][["Sum Sq"]][1], anova_penuh[[1]][["Sum Sq"]][2]), 3),
+  KT = round(c(anova_penuh[[1]][["Mean Sq"]][1], anova_penuh[[1]][["Mean Sq"]][2]), 3),
+  "Statistik Uji F" = c(round(anova_penuh[[1]][["F value"]][1], 3), "-")
+)
+print(tabel_penuh)
+
+# Tabel Perbandingan Model
+cat("\nTabel Perbandingan Model (Penuh vs Tereduksi):\n")
+tabel_perbandingan <- data.frame(
+  SK = c("Model Tereduksi", "Model Penuh"),
+  db = c(anova_perbandingan$Df[1], anova_perbandingan$Df[2]),
+  JK = round(anova_perbandingan$"Sum of Sq", 3),
+  KT = c("-", "-"),
+  "Statistik Uji F" = round(anova_perbandingan$"F", 3),
+  "Nilai-p" = round(anova_perbandingan$"Pr(>F)", 3)
+)
+print(tabel_perbandingan)
+
+# Kesimpulan
+if (anova_perbandingan$"Pr(>F)"[2] < 0.05) {
+  cat("\nKesimpulan: Model penuh lebih baik (Faktor Jenis Tanaman signifikan).\n")
+} else {
+  cat("\nKesimpulan: Tidak ada perbedaan signifikan antara model penuh dan tereduksi.\n")
+}
+
+```
+
+## TABEL ANOVA
+```{r}
+y
+z <- matrix(c(rep(1,9)),9,1)
+z
+
+jkter <- t(y)%*%z%*%solve(t(z)%*%z)%*%t(z)%*%y
+jkter
+```
+
+```{r}
+jkpen <- 1354.46
+jkhip <- jkpen - jkter
+```
+
+```{r}
+jktot <- t(y)%*%y
+jktot
+```
+
+```{r}
+jkres <- jktot - jkpen
+jkres
+```
+
+```{r}
+fhit <- (jkhip/2)/(jkres/6)
+fhit <- 198.9/0.097
+```
+## ANOVA Function
+```{r}
+data <- data.frame(
+  Tanaman = rep(c("Daun Singkong", "Daun Bayam", "Daun Selada"), each = 3),
+  Ulangan = rep(1:3, times = 3),
+  Klorofil = c(18.50, 17.70, 18.00, 10.70, 11.20, 11.20, 1.60, 2.00, 1.89)
+)
+
+```
+
+
+```{r}
+OlahRAL = aov(Klorofil~Tanaman, data=data)
+summary(OlahRAL)
+```
+```{r}
+qf(0.05,2,6,lower.tail=F)
+```
+
+
+
